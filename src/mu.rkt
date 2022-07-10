@@ -32,16 +32,10 @@
 
 (check-equal? (double-cdr '(m i u)) '(m i u i u))
 
-(define (get-slice l offset len retl)
-  (cond
-    ((null? (cdr l)) (error 'l "out of bounds of the current list"))
-    ((eq? offset 0)
-     (cond
-       ((eq? len (length retl)) retl)
-       (else (get-slice (cdr l) offset len (append retl (list (car l)))))))
-    (else (get-slice (cdr l) (- offset 1) len retl))))
+(define (get-slice l offset len)
+  (take (drop l offset) len))
 
-(check-equal? (get-slice '(m i u i u i u i i i u i u u i i i u i u i u) 7 3 '()) '(i i i))
+(check-equal? (get-slice '(m i u i u i u i i i u i u u i i i u i u i u) 0 3) '(m i u))
 
 ;; len refer to the length of rep the replacement list and retl is an empty list
 ;; offset cannot nor should it be 0
@@ -66,3 +60,30 @@
        (else (remove (cdr l) offset len (append retl (list (car l)))))))))
 
 (check-equal? (remove '(m i u i u) 1 1 '()) '(m u i u))
+
+(define (occurs-at? proof search index rl)
+  (cond
+    ((< (length proof) (length search)) rl)
+    ((equal? (get-slice proof 0 (length search)) search)
+     (occurs-at? (cdr proof) search (+ index 1) (append rl (list index))))
+    (else (occurs-at? (cdr proof) search (+ index 1) rl))))
+
+(check-equal? (occurs-at? '(m i u i u i i i) '(i u) 0 '()) '(1 3))
+
+(define (triple-i-at? proof)
+  (occurs-at? proof '(i i i) 0 '()))
+
+(check-equal? (triple-i-at? '(m i u i i i u i i i u i i i)) '(3 7 11))
+
+(define (double-uu-at? proof)
+  (occurs-at? proof '(u u) 0 '()))
+
+(check-equal? (double-uu-at? '(m i u u i u u i u i u u i i u i u u)) '(2 5 10 16))
+
+(define (triple-i-children proof occurs)
+  (let ([rl '()])
+    (cond
+      ((null? (cdr occurs)) rl)
+      (else (triple-i-children proof (append rl (replace proof (car occurs) '(i i i) 3 '())) (cdr occurs))))))
+
+(check-equal? (triple-i-children '(m i i i) (triple-i-at? '(m i i i))) '((m u)))
