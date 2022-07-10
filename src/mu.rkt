@@ -12,11 +12,8 @@
 (check-equal? (begins-with-m? '(m i u)) #t)
 (check-equal? (begins-with-m? '(i u)) #f)
 
-;; u can be added to end of any proof ending with i
 (define (ends-with-i? proof)
-  (cond
-    ((null? (cdr proof)) (eq? (car proof) 'i))
-    (else (ends-with-i? (cdr proof)))))
+  (equal? (drop proof (- (length proof) 1)) '(i)))
 
 (check-equal? (ends-with-i? '(m u i)) #t)
 (check-equal? (ends-with-i? '(m u u)) #f)
@@ -26,11 +23,19 @@
 
 (check-equal? (add-u '(m i)) '(m i u))
 
+;; add u to any proof ending with i
+(define (rule-add-u proof)
+  (cond
+    ((ends-with-i? proof) (add-u proof))
+    (else (error 'proof "proof does not end with i"))))
+
+(check-equal? (rule-add-u '(m i)) '(m i u))
+
 ;; the symbols after the first m can be doubled
-(define (double-cdr proof)
+(define (rule-double proof)
   (append proof (cdr proof)))
 
-(check-equal? (double-cdr '(m i u)) '(m i u i u))
+(check-equal? (rule-double '(m i u)) '(m i u i u))
 
 (define (get-slice l offset len)
   (take (drop l offset) len))
@@ -39,27 +44,15 @@
 
 ;; len refer to the length of rep the replacement list and retl is an empty list
 ;; offset cannot nor should it be 0
-(define (replace l offset rep len retl)
-  (cond
-    ((<= offset 0)
-     (cond
-       ((eq? (* -1 offset) len) (append retl l))
-       (else (replace (cdr l) (- offset 1) (cdr rep) len (append retl (list (car rep)))))))
-    (else (replace (cdr l) (- offset 1) rep len (append retl (list (car l)))))))
+(define (replace l offset rep len)
+  (append (take l offset) rep (drop l (+ offset len))))
 
-(check-equal? (replace '(m u u u u u u u u u u u u u u) 2 '(i i i i i) 5 '()) '(m u i i i i i u u u u u u u u))
+(check-equal? (replace '(m u u u u u u u u u u u u u u) 2 '(i i i i i) 5) '(m u i i i i i u u u u u u u u))
 
-;; uses a modified replace
-(define (remove l offset len retl)
-  (cond
-    ((not (eq? offset 0)) (remove (replace l offset (make-list len '()) len '()) 0 len '()))
-    (else
-     (cond
-       ((null? (cdr l)) (append retl (list (car l))))
-       ((null? (car l)) (remove (cdr l) offset len retl))
-       (else (remove (cdr l) offset len (append retl (list (car l)))))))))
-
-(check-equal? (remove '(m i u i u) 1 1 '()) '(m u i u))
+(define (del proof offset len)
+  (append (take proof offset) (drop proof (+ offset len))))
+  
+(check-equal? (del '(m i u i u) 1 1) '(m u i u))
 
 (define (occurs-at? proof search index rl)
   (cond
@@ -75,15 +68,46 @@
 
 (check-equal? (triple-i-at? '(m i u i i i u i i i u i i i)) '(3 7 11))
 
-(define (double-uu-at? proof)
+(define (double-u-at? proof)
   (occurs-at? proof '(u u) 0 '()))
 
-(check-equal? (double-uu-at? '(m i u u i u u i u i u u i i u i u u)) '(2 5 10 16))
+(check-equal? (double-u-at? '(m i u u i u u i u i u u i i u i u u)) '(2 5 10 16))
 
-(define (triple-i-children proof occurs)
-  (let ([rl '()])
-    (cond
-      ((null? (cdr occurs)) rl)
-      (else (triple-i-children proof (append rl (replace proof (car occurs) '(i i i) 3 '())) (cdr occurs))))))
+;; replace any set of triples i with u
+(define (rep-iii proof index)
+  (replace proof index '(u) 3))
 
-(check-equal? (triple-i-children '(m i i i) (triple-i-at? '(m i i i))) '((m u)))
+(check-equal? (rep-iii '(m i i i) 1) '(m u))
+
+;; generates all possible children of the triple i rule
+(define (rep-iii-children proof indexes ret)
+  (cond
+    ((null? (cdr indexes)) (append ret (list (rep-iii proof (car indexes)))))
+    (else (rep-iii-children proof (cdr indexes) (append ret (list (rep-iii proof (car indexes))))))))
+
+(check-equal? (rep-iii-children '(m i i i i i i) (triple-i-at? '(m i i i i i i)) '()) '((m u i i i) (m i u i i) (m i i u i) (m i i i u)))
+
+(define (rule-iii proof)
+  (rep-iii-children proof (triple-i-at? proof) '()))
+
+(check-equal? (rule-iii '(m i i i i i i)) '((m u i i i) (m i u i i) (m i i u i) (m i i i u)))
+
+;; delete any set of uu
+(define (del-uu proof index)
+  (del proof index 2))
+
+(check-equal? (del-uu '(m u u) 1) '(m))
+
+;; generates all possible children of the delete uu rule
+(define (del-uu-children proof indexes ret)
+  (cond
+    ((null? (cdr indexes)) (append ret (list (del-uu proof (car indexes)))))
+    (else (del-uu-children proof (cdr indexes) (append ret (list (del-uu proof (car indexes))))))))
+
+(check-equal? (del-uu-children '(m u u i u u) (double-u-at? '(m u u i u u)) '()) '((m i u u) (m u u i)))
+
+(define (rule-uu proof)
+  (del-uu-children proof (double-u-at? proof) '()))
+
+(check-equal? (rule-uu '(m u u i u u)) '((m i u u) (m u u i)))
+
