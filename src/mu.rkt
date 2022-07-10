@@ -5,6 +5,8 @@
 ;; proofs are lists that consist of the symbols m i u
 (define-values (m i u) (values 'm 'i 'u))
 
+(define start '(m i))
+
 ;; proofs must begin with m
 (define (begins-with-m? proof)
   (eq? (car proof) 'm))
@@ -26,16 +28,16 @@
 ;; add u to any proof ending with i
 (define (rule-add-u proof)
   (cond
-    ((ends-with-i? proof) (add-u proof))
-    (else (error 'proof "proof does not end with i"))))
+    ((ends-with-i? proof) (list (add-u proof)))
+    (else '())))
 
-(check-equal? (rule-add-u '(m i)) '(m i u))
+(check-equal? (rule-add-u '(m i)) '((m i u)))
 
 ;; the symbols after the first m can be doubled
 (define (rule-double proof)
-  (append proof (cdr proof)))
+  (list (append proof (cdr proof))))
 
-(check-equal? (rule-double '(m i u)) '(m i u i u))
+(check-equal? (rule-double '(m i u)) '((m i u i u)))
 
 (define (get-slice l offset len)
   (take (drop l offset) len))
@@ -82,6 +84,7 @@
 ;; generates all possible children of the triple i rule
 (define (rep-iii-children proof indexes ret)
   (cond
+    ((null? indexes) ret)
     ((null? (cdr indexes)) (append ret (list (rep-iii proof (car indexes)))))
     (else (rep-iii-children proof (cdr indexes) (append ret (list (rep-iii proof (car indexes))))))))
 
@@ -101,6 +104,7 @@
 ;; generates all possible children of the delete uu rule
 (define (del-uu-children proof indexes ret)
   (cond
+    ((null? indexes) ret)
     ((null? (cdr indexes)) (append ret (list (del-uu proof (car indexes)))))
     (else (del-uu-children proof (cdr indexes) (append ret (list (del-uu proof (car indexes))))))))
 
@@ -109,5 +113,12 @@
 (define (rule-uu proof)
   (del-uu-children proof (double-u-at? proof) '()))
 
+(check-equal? (rule-uu '(m i)) '())
 (check-equal? (rule-uu '(m u u i u u)) '((m i u u) (m u u i)))
 
+;; generates all possible children 
+(define (get-children proof)
+  (append (rule-uu proof) (rule-iii proof) (rule-double proof) (rule-add-u proof)))
+
+(check-equal? (get-children '(m i)) '((m i i) (m i u)))
+(check-equal? (get-children '(m i i i)) '((m u) (m i i i i i i) (m i i i u)))
