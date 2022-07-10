@@ -2,76 +2,67 @@
 
 (require rackunit)
 
-(define string-to-list
-  (lambda (str)
-    (map string (string->list str))))
+;; proofs are lists that consist of the symbols m i u
+(define-values (m i u) (values 'm 'i 'u))
 
-(check-equal? (string-to-list "me") '("m" "e"))
+;; proofs must begin with m
+(define (begins-with-m? proof)
+  (eq? (car proof) 'm))
 
-(define list-to-string
-  (lambda (l)
-    (string-join l "")))
+(check-equal? (begins-with-m? '(m i u)) #t)
+(check-equal? (begins-with-m? '(i u)) #f)
 
-(check-equal? (list-to-string '("m" "e")) "me")
+;; u can be added to end of any proof ending with i
+(define (ends-with-i? proof)
+  (cond
+    ((null? (cdr proof)) (eq? (car proof) 'i))
+    (else (ends-with-i? (cdr proof)))))
 
-(define last-element
-  (lambda (l)
-    (cond
-      ((null? (cdr l)) (car l))
-      (else (last-element (cdr l))))))
+(check-equal? (ends-with-i? '(m u i)) #t)
+(check-equal? (ends-with-i? '(m u u)) #f)
 
-(check-equal? (last-element '(1 2 3 4)) '4)
+(define (add-u proof)
+  (append proof (list u)))
 
-(define can-add-u?
-  (lambda (l)
-    (cond
-      ((eq? (last-element l) "i") #t)
-      (else #f))))
+(check-equal? (add-u '(m i)) '(m i u))
 
-(check-equal? (can-add-u? '("m" "i")) '#t)
-(check-equal? (can-add-u? '("m" "u")) '#f)
+;; the symbols after the first m can be doubled
+(define (double-cdr proof)
+  (append proof (cdr proof)))
 
-(define remove-last
-  (lambda (l)
-    (cond
-      ((null? l)(error 'l "is an empty list"))
-      ((null? (cdr l)) '())
-      (else (cons (car l) (remove-last (cdr l)))))))
+(check-equal? (double-cdr '(m i u)) '(m i u i u))
 
-(check-equal? (remove-last '(1 2 3)) '(1 2))
+(define (get-slice l offset len retl)
+  (cond
+    ((null? (cdr l)) (error 'l "out of bounds of the current list"))
+    ((eq? offset 0)
+     (cond
+       ((eq? len (length retl)) retl)
+       (else (get-slice (cdr l) offset len (append retl (list (car l)))))))
+    (else (get-slice (cdr l) (- offset 1) len retl))))
 
-(define add-u
-  (lambda (l)
-    (cond
-      ((null? l)
-       (error 'l "is an empty list"))
-      ((can-add-u? l)
-       (let ([rl (remove-last l)])
-         (append rl (list "u"))))
-      (else (error 'l "is unkwown")))))
+(check-equal? (get-slice '(m i u i u i u i i i u i u u i i i u i u i u) 7 3 '()) '(i i i))
 
-(check-equal? (add-u '("m" "i" "i")) '("m" "i" "u"))
+;; len refer to the length of rep the replacement list and retl is an empty list
+;; offset cannot nor should it be 0
+(define (replace l offset rep len retl)
+  (cond
+    ((<= offset 0)
+     (cond
+       ((eq? (* -1 offset) len) (append retl l))
+       (else (replace (cdr l) (- offset 1) (cdr rep) len (append retl (list (car rep)))))))
+    (else (replace (cdr l) (- offset 1) rep len (append retl (list (car l)))))))
 
-;; every proof must begin with "m"
-(define starts-with-m?
-  (lambda (l)
-    (cond
-      ((eq? (car l) "m") #t)
-      (else #f))))
+(check-equal? (replace '(m u u u u u u u u u u u u u u) 2 '(i i i i i) 5 '()) '(m u i i i i i u u u u u u u u))
 
-(define double-string
-  (lambda (l)
-    (cond
-      ((null? (cdr l)) (error 'l "cannot double a string which does not exist"))
-      (else (append l (cdr l))))))
+;; uses a modified replace
+(define (remove l offset len retl)
+  (cond
+    ((not (eq? offset 0)) (remove (replace l offset (make-list len '()) len '()) 0 len '()))
+    (else
+     (cond
+       ((null? (cdr l)) (append retl (list (car l))))
+       ((null? (car l)) (remove (cdr l) offset len retl))
+       (else (remove (cdr l) offset len (append retl (list (car l)))))))))
 
-(check-equal? (double-string '("m" "u")) '("m" "u" "u"))
-
-(define test '(1 2 3 4 5 6 7 8 9 10))
-
-(define slice
-  (lambda (l offset n)
-    (take (drop l offset) n)))
-
-(check-equal? (slice '(1 2 3 4 5 6 7 8 9 10) 2 2) '(3 4))
-
+(check-equal? (remove '(m i u i u) 1 1 '()) '(m u i u))
