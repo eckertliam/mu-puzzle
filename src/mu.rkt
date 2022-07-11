@@ -122,3 +122,42 @@
 
 (check-equal? (get-children '(m i)) '((m i i) (m i u)))
 (check-equal? (get-children '(m i i i)) '((m u) (m i i i i i i) (m i i i u)))
+
+;; generates all possible children for a list of proofs
+(define (all-children proofs)
+  (cond
+    ((null? proofs) '())
+    (else (append (get-children (car proofs)) (all-children (cdr proofs))))))
+
+(check-equal? (all-children (get-children start)) '((m i i i i) (m i i u) (m i u i u)))
+
+;; gets all the proofs a specific depth from the initial proof
+;; proofs must be a list of proofs even if there is one proof
+(define (get-depth depth proofs)
+  (cond
+    ((>= 0 depth) proofs)
+    (else (get-depth (- depth 1) (all-children proofs)))))
+
+(check-equal? (get-depth 2 '((m i))) '((m i i i i) (m i i u) (m i u i u)))
+
+;; all proofs up to a depth in a flattened list
+(define (all-to-depth depth proofs)
+  (cond
+    ((>= 0 depth) '())
+    (else (let ([dep (all-children proofs)])
+            (append dep (all-to-depth (- depth 1) dep))))))
+
+(check-equal? (all-to-depth 2 (list start)) '((m i i) (m i u) (m i i i i) (m i i u) (m i u i u)))
+
+;; gives the length of a depth with a specific proof or proofs
+(define (depth-len depth proofs)
+  (length (get-depth depth proofs)))
+
+(check-equal? (depth-len 4 (list start)) 16)
+
+(define (member-to-depth? find proofs depth)
+  (not (eq? #f (member find (all-to-depth depth proofs)))))
+
+(check-equal? (member-to-depth? '(m i i) (list start) 4) #t)
+(check-equal? (member-to-depth? '(m u) (list start) 5) #f)
+
