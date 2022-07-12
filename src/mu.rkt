@@ -105,6 +105,7 @@
     (else (let ([dep (all-children-dupless proofs)])
             (append dep (all-to-depth (- depth 1) dep))))))
 
+;; all proofs up to a depth in a flattened list with all dups removed
 (define (all-to-depth-dupless depth proofs)
   (remove-duplicates (all-to-depth depth proofs)))
 
@@ -115,5 +116,11 @@
 (define (member-to-depth? find proofs depth)
   (not (eq? #f (member find (all-to-depth-dupless depth proofs)))))
 
+;; writes proofs to file erasing the previous
+(define (write-file fname proofs)
+  (with-output-to-file fname
+    (lambda ()
+      (write (remove-duplicates proofs)))
+    #:exists 'replace))
 
 (provide (all-defined-out))
